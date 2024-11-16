@@ -1,0 +1,69 @@
+/*1. The code reads a dataset, removes missing and duplicate values, and ensures all data types are correctly formatted.  
+  2. Numerical columns are scaled using standardization, and categorical columns are encoded into numeric values.  
+  3. Outliers in numerical columns are removed using the Interquartile Range (IQR) method.  
+  4. The data is split into training, validation, and test sets for model training and evaluation.  
+  5. Processed datasets are saved into separate CSV files for future use. */
+
+
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split
+
+data = pd.read_csv('your_dataset.csv')
+print(data.head())
+print(data.info())
+
+data = data.dropna(thresh=int(0.7 * data.shape[1]))
+
+numerical_cols = data.select_dtypes(include=[np.number]).columns
+for col in numerical_cols:
+    data[col].fillna(data[col].median(), inplace=True)
+
+categorical_cols = data.select_dtypes(include=[object]).columns
+for col in categorical_cols:
+    data[col].fillna('Unknown', inplace=True)
+
+data.drop_duplicates(inplace=True)
+
+if 'date_column_name' in data.columns:
+    data['date_column_name'] = pd.to_datetime(data['date_column_name'])
+
+for col in numerical_cols:
+    Q1 = data[col].quantile(0.25)
+    Q3 = data[col].quantile(0.75)
+    IQR = Q3 - Q1
+    data = data[(data[col] >= Q1 - 1.5 * IQR) & (data[col] <= Q3 + 1.5 * IQR)]
+
+scaler = StandardScaler()
+data[numerical_cols] = scaler.fit_transform(data[numerical_cols])
+
+label_encoders = {}
+for col in categorical_cols:
+    le = LabelEncoder()
+    data[col] = le.fit_transform(data[col])
+    label_encoders[col] = le
+
+if 'date_column_name' in data.columns:
+    data['Year'] = data['date_column_name'].dt.year
+
+target_column = 'target_column_name'
+
+X = data.drop(target_column, axis=1)
+y = data[target_column]
+
+X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+
+print(f"Training Set: {X_train.shape}, {y_train.shape}")
+print(f"Validation Set: {X_val.shape}, {y_val.shape}")
+print(f"Test Set: {X_test.shape}, {y_test.shape}")
+
+X_train.to_csv('X_train.csv', index=False)
+X_val.to_csv('X_val.csv', index=False)
+X_test.to_csv('X_test.csv', index=False)
+y_train.to_csv('y_train.csv', index=False)
+y_val.to_csv('y_val.csv', index=False)
+y_test.to_csv('y_test.csv', index=False)
+
+print("Data preprocessing complete. Processed files saved.")
